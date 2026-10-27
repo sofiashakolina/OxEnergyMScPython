@@ -56,8 +56,14 @@ def calc_pv_array_size(building_width, building_length,
     """
 
     # TODO: add your code to calculate PV array size from the previous exercise.
+    hypotenuse = building_width / 2 * 1 / math.cos(math.radians(roof_angle))
 
-    return # TODO: return the calculated total power
+    n_length = math.floor(building_length / (pv_width / 1000))
+    n_height = math.floor(hypotenuse / (pv_height / 1000))
+
+    total_power = n_length * n_height * pv_power / 1000   # W to kW
+
+    return total_power
 
 # =============================================================================
 # Example PV class
@@ -182,35 +188,32 @@ class Storage():
             The net demand post storage operation.
         """
         # add you conditional storage model from above
-        # the for loop will be outside this function, and will call this function for each timestep t.
-        # remember to use the self. prefix to access the class attributes, e.g. self.bat_P, self.soc_E, etc.
-
-        # previous SoC (initial SoC for the first timestep)
+                # previous SoC (initial SoC for the first timestep)
         if t == 0:
             soc_prev = self.soc_0
         else:
             soc_prev = self.soc_E[t-1]
-        
-        # 5. Battery power  (discharge = negative, charge = positive)
+
+        # 5. Battery power (discharge = negative, charge = positive)
         if demand_P > 0:
-            # Case (a): discharge
-            self.bat_P[t] = ...  # TODO
+            # discharge
+            self.bat_P[t] = -min(demand_P, self.max_power,
+                                 self.efficiency * (soc_prev - self.min_soc) / self.dt)
         elif demand_P < 0:
-            # Case (b): charge
-            self.bat_P[t] = ...  # TODO
+            # charge
+            self.bat_P[t] = min(-demand_P, self.max_power,
+                                (self.max_soc - soc_prev) / (self.efficiency * self.dt))
         else:
-            # Case (c): no battery operation
             self.bat_P[t] = 0
-    
-        # 6. Update SoC (apply efficiency depending on charge/discharge)
+
+        # 6. Update SoC
         if self.bat_P[t] >= 0:
-            self.soc_E[t] = ...  # TODO charge
+            self.soc_E[t] = soc_prev + self.efficiency * self.bat_P[t] * self.dt
         else:
-            self.soc_E[t] = ...  # TODO discharge
-    
-        result_net_P_t = ...  # TODO
-        
-        
+            self.soc_E[t] = soc_prev + (self.bat_P[t] / self.efficiency) * self.dt
+
+        result_net_P_t = demand_P + self.bat_P[t]
+
         return result_net_P_t
 
 
@@ -226,7 +229,19 @@ if __name__ == "__main__":
     # This is useful way of testing the code or providing examples of how to 
     # use the code.
     # =============================================================================
-    
+        # test the PV function
+    print(calc_pv_array_size(16, 30, 22, 1690, 1046, 400))   # expect 54.4
+
+    # test the Storage class
+    demand = [5, 0, 25, 12, 23, 4, 24, 1, 11, 0]
+    generation = [0, 8, 13, 15, 16, 14, 9, 6, 3, 2]
+    net_P = [demand[i] - generation[i] for i in range(len(demand))]
+
+    bat = Storage("bat1", T=len(net_P), dt=1)
+    for t in range(len(net_P)):
+        bat.storage_charge_action(net_P[t], t)
+
+    print(f"Final state of charge: {bat.soc_E[-1]:.2f} kWh")   # expect 2.46
     
     
     pass
